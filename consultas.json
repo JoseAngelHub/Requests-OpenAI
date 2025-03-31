@@ -1,0 +1,58 @@
+[
+    {
+        "consulta": "SELECT CONTACTO, LTRIM(CODMON) AS MONEDA\nFROM __CLIENTES\nWHERE CLAVE = 'wậRO';",
+        "respuesta": []
+    },
+    {
+        "consulta": "SELECT CONTACTO, CODMON \nFROM __CLIENTES \nWHERE LTRIM(CLAVE) = 'e±¥';",
+        "respuesta": [
+            {
+                "CONTACTO": "Sr. Martínez",
+                "CODMON": "EURO"
+            },
+            {
+                "CONTACTO": "Sr. Martínez",
+                "CODMON": "EURO"
+            }
+        ]
+    },
+    {
+        "consulta": "SELECT CONTACTO, LTRIM(CODMON) AS MONEDA\nFROM __CLIENTES\nWHERE CLAVE = 'e±¥'",
+        "respuesta": [
+            {
+                "CONTACTO": "Sr. Martínez",
+                "MONEDA": "EURO"
+            },
+            {
+                "CONTACTO": "Sr. Martínez",
+                "MONEDA": "EURO"
+            }
+        ]
+    },
+    {
+        "consulta": "SELECT CONTACTO, LTRIM(CODMON) AS MONEDA \nFROM __CLIENTES \nWHERE CLAVE = 'w&âRO»';",
+        "respuesta": [
+            {
+                "CONTACTO": "Sr. Segovia",
+                "MONEDA": "EURO"
+            },
+            {
+                "CONTACTO": "Sr. Segovia",
+                "MONEDA": "EURO"
+            }
+        ]
+    },
+    {
+        "consulta": "SELECT CONTACTO, LTRIM(CODMON) AS MONEDA \nFROM __CLIENTES \nWHERE CLAVE = 'w&âRO»';",
+        "respuesta": [
+            {
+                "CONTACTO": "Sr. Segovia",
+                "MONEDA": "EURO"
+            },
+            {
+                "CONTACTO": "Sr. Segovia",
+                "MONEDA": "EURO"
+            }
+        ]
+    }
+]
