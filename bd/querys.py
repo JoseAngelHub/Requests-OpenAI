@@ -5,71 +5,79 @@ from sqlalchemy.orm import Session
 from core.config import OPENAI_API_KEY
 import openai
 
-# Cogemos los datos de la tabla que nos pasan
+# We take the data from the table that is passed to us
 def get_context(table, db: Session = get_connect_db()):
     try:
-    # Consulta para obtener metadatos de columnas desde INFORMATION_SCHEMA
+    # Query to get column metadata from INFORMATION_SCHEMA
         query = f"""SELECT COLUMN_NAME, DATA_TYPE FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = '{table}';"""
         
         db.execute(query)
         result = db.fetchall()
 
-        # Extrae solo los nombres de las columnas
+        # Extract only the column names
         columns = [row['COLUMN_NAME'] for row in result]
         
         return columns
     except Exception as e:
-        print(f"Error inesperado obteniendo columnas de {table}: {e}")
+        print(f"Unexpected error getting columns from {table}: {e}")
         return []
 
-# Ejecuta la consulta SQL en el servidor
-def ejecutar_consulta_sql(sql_query, db: Session = get_connect_db()):
+# Execute the SQL query on the server
+def execute_sql_query(sql_query, db: Session = get_connect_db()):
     try:
-        # Ejecuta la consulta SQL en la base de datos
+        # Execute the SQL query in the database
         db.execute(sql_query)
         
-        # Obtiene todos los resultados de la consulta
+        # Gets all the results of the query
         result = db.fetchall()
         
-        devolver_json(result)  # Convierte resultados a JSON y guarda en archivo
         return result
     except Exception as e:
-        print(f"Error inesperado ejecutando la consulta SQL: {e}")
+        print(f"Unexpected error executing SQL query: {e}")
         return None
     
-# Transforma el resultado de la consulta a un json
-def devolver_json(result):
-    # Convierte los resultados a JSON
-    json_result = json.dumps([dict((k, convertir_decimales(v)) for k, v in row.items()) for row in result], indent=4)
+def verify_user(api_secret: str):
+    query =f"SELECT API_SECRET FROM AUTH_TOKEN WHERE API_SECRET ='{api_secret}';"
+    db = get_connect_db()
+    db.execute(query)
+    result = db.fetchall()
+    sql = [row['API_SECRET'] for row in result if row['API_SECRET']]
+    print(", ".join(sql))
+    
+
+# Transforms the query result into a json
+def return_json(result):
+    # Converts results to JSON
+    json_result = json.dumps([dict((k, convert_decimals(v)) for k, v in row.items()) for row in result], indent=4)
     
     return json_result
 
-# Transforma el resultado de la consulta SQL y lo desarrolla en un mensaje para que quede mas claro
-def transformar_humano(lenguaje_json):
+# Transforms the result of the SQL query and develops it into a message to make it clearer
+def transform_human(lenguaje_json):
     openai.api_key = OPENAI_API_KEY 
-    lenguaje_json = json.dumps(lenguaje_json, default=convertir_decimales)
+    lenguaje_json = json.dumps(lenguaje_json, default=convert_decimals)
     prompt = (
-        f"Eres un asistente virtual de atención al cliente inteligente que trabaja para SQL.\n"
-        f"Eres un experto en SQL. Tu objetivo es dar los siguientes datos '{lenguaje_json}'"
-        f"para que una persona que no sepa leer JSON pueda entender el resultado "
-        f"Da el resultado, en un formato que sea legible, no añadas saltos de linea. Ten en cuenta que el resultado que tu des sera visto desde WhatsApp,\n"
-        f"no añadas texto innecesario y en caso de que no vayas a responder nada coherente responde \n"
-        f"'Ups, algo ha fallado, vuelve a intentarlo cambiando la peticion, por favor, formula mejor tu pregunta, no la estoy entendiendo :)'"
-    )
+    f"You are a smart virtual customer service assistant working for SQL.\n"
+    f"You are an expert in SQL. Your goal is to provide the following data '{lenguaje_json}'"
+    f"so that someone who doesn't know how to read JSON can understand the result. "
+    f"Provide the result in a format that is readable, do not add line breaks. Keep in mind that the result you provide will be seen on WhatsApp,\n"
+    f"do not add unnecessary text, and if you cannot provide a coherent response, reply with \n"
+    f"'Ups, algo salió mal, por favor inténtalo de nuevo reformulando tu solicitud, no lo entiendo. :)'"
+)
     
-    respuesta = openai.chat.completions.create(
-        model="gpt-4o-mini",  # Modelo de lenguaje utilizado
-        messages=[
-            {"role": "system", "content": "Eres un asistente experto en bases de datos que entiende consultas SQL y las transforma para que los resultados de las consultas lo entienda un humano que no tenga ni idea de JSON"},
+    answer = openai.chat.completions.create(
+        model="gpt-4o-mini",  # Language model used
+        messages = [
+            {"role": "system", "content": "You are an expert assistant in databases who understands SQL queries and transforms them so that the results of the queries are understandable to a human who has no knowledge of JSON"},
             {"role": "user", "content": prompt}
         ],
-        max_tokens=100,  # Limite de tokens de respuesta 
-        temperature=0  # Configuracion para respuestas mas deterministicas
+        max_tokens=100,  # Response token limit
+        temperature=0  # Configuration for more deterministic responses
     )
-    return respuesta.choices[0].message.content
+    return answer.choices[0].message.content
     
-#Para que no de errores al pasarlo a un json cambiamos los tipos de datos
-def convertir_decimales(obj):
+# To avoid errors when converting it to JSON, we change the data types.
+def convert_decimals(obj):
     if isinstance(obj, Decimal):
         return float(obj)
     return obj
