@@ -99,10 +99,8 @@ class SQLAssistant:
             return ''
     
     def process_q(self, question: str) -> str:
-        inicio = time.time()
         # Identify the most relevant table for the question
         selected_table = self.ask_llm_for_table(question)
-        print(selected_table)
         if not selected_table:
             return "The table could not be determined."
 
@@ -114,7 +112,7 @@ class SQLAssistant:
         with open(r'tablas.json', 'r') as j:
             tables = json.load(j)
             formatted_prompt = (
-                f"Create the SQL query for the tables {selected_table} maybe you need use JOIN, here you have the tables to watch the relationated columns {tables}\n"
+                f"Create the SQL query for the tables {selected_table} maybe you need use JOIN, here you have the tables to watch the relationated columns {tables}, varchars of length one are either F or T\n"
                 f"Use the following columns from the table—do not make up any.\n"
                 f"Use * for queries that do not specify columns. "
                 f"There are columns such as codes where you will need to use LTRIM because they contain spaces, there are many columns dont need to use.\n"
@@ -143,14 +141,10 @@ class SQLAssistant:
                 # Execute the SQL query
                 query_result = execute_sql_query(sql_query)
                 if query_result is False:
-                    print("Algo no ha ido bien")
-                    error="No hemos encontrado respuesta valida para usted, verifica la consulta que quieres hacer"
-                    return error
+                    empty="No he encontrado nada"
+                    return empty
                 else: 
-                    cordial = "Si esta no es la respuesta que esperabas, por favor, vuelve a preguntar de otra manera."
-                    fin = time.time()
-                    print(f"Tiempo en segundos process_q ", {fin-inicio})
-                    return transform_human(query_result).strip() + "\n"+cordial
+                    return transform_human(query_result).strip()
 
             except Exception as e:
                 return f"\n\nError executing SQL query: {e}"
@@ -182,12 +176,12 @@ class SQLAssistant:
             J.error(f"User not found error: {str(e)}")
             return False
     
+    
     def get_user(self, nombre:str, password:str):
         query=f"""SELECT NOMBRE, PASSWD FROM USERS WHERE NOMBRE = '{nombre}' AND PASSWD='{password}'"""
         db = conn.get_connect_db()
         db.execute(query)
         result = db.fetchall()
-        print(result)
         if len(result)==0:
             return False
         else:

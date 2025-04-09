@@ -94,6 +94,7 @@ def process_query(request: QueryRequest, username: str = Depends(get_current_use
             print(request.body["text"])
             response = sql_assistant.process_q(request.body["text"])
             J.info("Query processed successfully")
+            print(response)
             return {"success": True, "answer": response}
         else:
             # Handle case when user does not exist

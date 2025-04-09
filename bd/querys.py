@@ -12,7 +12,7 @@ import datetime
 def get_context(tables, db: Session = get_connect_db()):
     try:
         if not tables:
-            raise ValueError("Debe proporcionar al menos una tabla.")
+            raise ValueError("You must provide at least one table.")
 
         table_list = [table.strip() for table in tables.split(',')]
         # Save it in a list in case we get several tables
@@ -41,7 +41,6 @@ def get_context(tables, db: Session = get_connect_db()):
 
 # Execute the SQL query on the server
 def execute_sql_query(sql_query, db: Session = get_connect_db()):
-    inicio = time.time()
     try:
         J.info(f"Executing SQL query: {sql_query}")
         
@@ -51,33 +50,14 @@ def execute_sql_query(sql_query, db: Session = get_connect_db()):
             J.info(f"Query executed failed, rows returned: {len(result)}")
             return False
         J.info(f"Query executed successfully, rows returned: {len(result)}")
-        fin = time.time()
-        print(f"Tiempo en segundos execute_sql_query ",{fin-inicio})
         return result
         
     except Exception as e:
         J.error(f"Unexpected error executing SQL query: {e}")
         return False
 
-# Transforms the query result into a json
-def return_json(result):
-    try:
-        J.info("Transforming query result into JSON")
-        
-        json_result = json.dumps(
-            [dict((k, convert_decimals(v)) for k, v in row.items()) for row in result], 
-            indent=4
-        )
-
-        J.info("JSON transformation successful")
-        return json_result
-    except Exception as e:
-        J.error(f"Error transforming result to JSON: {e}")
-        return None
-
 # Transforms the result of the SQL query and develops it into a message to make it clearer
 def transform_human(lenguaje_json):
-    inicio = time.time()
     try:
         J.info("Transforming JSON result into human-readable format")
         
@@ -85,10 +65,9 @@ def transform_human(lenguaje_json):
         
         try:
             lenguaje_json_str = json.dumps(lenguaje_json, default=convert_decimals)
-            print(lenguaje_json_str)
         except Exception as e:
-            J.error(f"Error al serializar JSON: {e}")
-            return "Hubo un problema al procesar los datos."
+            J.error(f"Error serializing JSON: {e}")
+            return "There was a problem processing the data."
         default_text = "None."
         greeting = "Hola, ¿en qué puedo ayudarte?"
         prompt = (
@@ -122,11 +101,7 @@ def transform_human(lenguaje_json):
             temperature=0.2 # The temperature is the randomness of the response, the lower the value, the more predictable the response will be.
         )
         J.info("Transformation to human-readable format successful")
-        fin = time.time()
-        a = answer.choices[0].message.content
-        print(f"Tiempo en segundos transformar a humano" ,{fin-inicio})
-        return a
-        #return lenguaje_json_str
+        return answer.choices[0].message.content
     except Exception as e:
         J.error(f"Error in transforming JSON to human-readable format: {e}")
         return "Oops, something went wrong, please try again by rephrasing your request, I don't understand.."
