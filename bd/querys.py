@@ -8,22 +8,35 @@ import openai
 import core.logger as J
 import datetime
 
-# We take the data from the table that is passed to us
-def get_context(table, db: Session = get_connect_db()):
+# We take the data from the tables that is passed to us
+def get_context(tables, db: Session = get_connect_db()):
     try:
-        J.info(f"Fetching column metadata for table: {table}")
+        if not tables:
+            raise ValueError("Debe proporcionar al menos una tabla.")
+
+        table_list = [table.strip() for table in tables.split(',')]
+        # Save it in a list in case we get several tables
+        J.info(f"Fetching column metadata for tables: {table_list}")
         
-        query = f"""SELECT COLUMN_NAME, DATA_TYPE FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = '{table}';"""
+        table_names = "','".join(table_list)
+        query = f"""
+            SELECT 
+                COLUMN_NAME, DATA_TYPE 
+            FROM 
+                INFORMATION_SCHEMA.COLUMNS 
+            WHERE 
+                TABLE_NAME IN ('{table_names}');
+        """
+        
         db.execute(query)
         result = db.fetchall()
 
-        # Extract only the column names
         columns = [row['COLUMN_NAME'] for row in result]
         
-        J.info(f"Retrieved columns for {table}: {columns}")
+        J.info(f"Retrieved columns for {table_list}: {columns}")
         return columns
     except Exception as e:
-        J.error(f"Unexpected error getting columns from {table}: {e}")
+        J.error(f"Unexpected error getting columns from {table_list}: {e}")
         return []
 
 # Execute the SQL query on the server
@@ -45,20 +58,6 @@ def execute_sql_query(sql_query, db: Session = get_connect_db()):
     except Exception as e:
         J.error(f"Unexpected error executing SQL query: {e}")
         return False
-
-def verify_user(api_secret: str):
-    try:
-        J.info(f"Verifying API_SECRET: {api_secret}")
-        
-        query = f"SELECT API_SECRET FROM AUTH_TOKEN WHERE API_SECRET ='{api_secret}';"
-        db = get_connect_db()
-        db.execute(query)
-        result = db.fetchall()
-        
-        sql = [row['API_SECRET'] for row in result if row['API_SECRET']]
-        J.info(f"API_SECRET verification result: {sql}")
-    except Exception as e:
-        J.error(f"Error verifying API_SECRET: {e}")
 
 # Transforms the query result into a json
 def return_json(result):
@@ -107,9 +106,11 @@ def transform_human(lenguaje_json):
             f"##IMPORTANT##\n"
             f"Don't give it in table format, give it as a list"
             f"You will have a default text for when you can't find a field, or they send you nonsense, random words, etc. '{default_text}'"
-            f"Max 65.536 caracteres\n"
+            f"Max 65.536 caracteres"
             f"##IMPORTANT##\n"
             f"If the message they sent you is a greeting, reply with the text '{greeting}'\n"
+            f"##IMPORTANT##\n"
+            f"If you are given a field that is repeated many times, show it once and no more, for example a name, an id..."
         )
         answer = openai.chat.completions.create(
             model="gpt-4o-mini",

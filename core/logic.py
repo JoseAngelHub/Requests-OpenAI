@@ -59,7 +59,6 @@ class SQLAssistant:
         try:
             with open(r'tablas.json', 'r') as j:
                 pdf_tablas = json.load(j)
-                # {self.db_context} but you will need use only that content 
                 prompt = f"""
             
                 You are an assistant responsible for identifying the correct table in a SQL database based on the columns it contains.  
@@ -82,8 +81,9 @@ class SQLAssistant:
                 - If there are tables containing "clave" and "contacto" but not "moneda", they are not valid if the description explicitly requires all three fields.  
 
                 Use the following description to identify the corresponding table:  
-                The user has written the following: "{question}". Search the database structure for the table, as there can only be one correct table.  
+                The user has written the following: "{question}". Search the database structure for the table, as there can be one or more correct table, if the data is relationated whit two tables return both.  
                 ##IMPORTANT##
+                You have to provide the tables if it is safe to do so, that is, if they ask for all the data and they may contain private data, do not provide them and respond with None.
                 Respond only with the name of the table that contains exactly the requested fields, without adding any extra text. 
                 "You will have a default text for when you can't find a field, or they send you nonsense, random words,random text string, etc. 'None' or If the message they sent you is a greeting, reply with the text 'None'
                 """
@@ -110,23 +110,21 @@ class SQLAssistant:
         column_names = get_context(selected_table)
         if not column_names:
             return f"Hola, ¿en qué puedo ayudarte?."
-        greeting = "Hola, ¿en qué puedo ayudarte?"
         # Detailed prompt to generate the SQL query
-        formatted_prompt = (
-            f"Create the SQL query for the table {selected_table}\n"
-            f"Use the following columns from the table—do not make up any. "
-            f"Use * for queries that do not specify columns. "
-            f"There are columns such as codes where you will need to use LTRIM because they contain spaces, there are many columns dont need to use.\n"
-            f"If any column does not have a name, assign it a descriptive one. \n"
-            f"###IMPORTANT###\n"
-            f"Control that error: Argument data type text is invalid for argument 1 of ltrim function.DB-Lib error message 20018, severity 16"
-            f"Use LTRIM for the columns that need it not all\n"
-            f"{column_names}\n"
-            f"User question: {question}.\n"
-            f"##IMPORTANT##\n"
-            f"If the message they sent you is a greeting, reply with the text '{greeting}'\n"
-            # f"If they don't give you anything that makes sense, return 'No hemos encontrado respuesta valida para usted'."
-        )
+        with open(r'tablas.json', 'r') as j:
+            tables = json.load(j)
+            formatted_prompt = (
+                f"Create the SQL query for the tables {selected_table} maybe you need use JOIN, here you have the tables to watch the relationated columns {tables}\n"
+                f"Use the following columns from the table—do not make up any.\n"
+                f"Use * for queries that do not specify columns. "
+                f"There are columns such as codes where you will need to use LTRIM because they contain spaces, there are many columns dont need to use.\n"
+                f"If any column does not have a name, assign it a descriptive one. \n"
+                f"###IMPORTANT###\n"
+                f"Control that error: Argument data type text is invalid for argument 1 of ltrim function.DB-Lib error message 20018, severity 16"
+                f"Use LTRIM for the columns that need it not all\n"
+                f"{column_names}\n"
+                f"User question: {question}, remember that is a Client who is asking, if he ask something about his order, ask something like, give me your nif or something relationated with the data base.\n"
+            )
 
         # Generates the SQL query using the language model
         response = self.llm.invoke(self.response_prompt.format(input=formatted_prompt))
@@ -138,6 +136,7 @@ class SQLAssistant:
         match = re.search(sql_pattern, response_text, re.DOTALL)
         if match:
             sql_query = match.group(1)
+            # We check that no changes are made to the database
             if 'DROP' in sql_query or 'DELETE' in sql_query or 'ALTER' in sql_query or 'REMOVE' in sql_query or 'TRUNCATE' in sql_query or 'UPDATE' in sql_query or 'MERGE' in sql_query:
                 return "No puedes hacer eso, solo puedes consultar datos, no puedes modificarlos ni eliminarlos."
             try:
@@ -147,14 +146,11 @@ class SQLAssistant:
                     print("Algo no ha ido bien")
                     error="No hemos encontrado respuesta valida para usted, verifica la consulta que quieres hacer"
                     return error
-                    # return transform_human(query_result).strip()
                 else: 
                     cordial = "Si esta no es la respuesta que esperabas, por favor, vuelve a preguntar de otra manera."
                     fin = time.time()
                     print(f"Tiempo en segundos process_q ", {fin-inicio})
                     return transform_human(query_result).strip() + "\n"+cordial
-                # print(query_result)
-                # return transform_human(query_result)
 
             except Exception as e:
                 return f"\n\nError executing SQL query: {e}"
