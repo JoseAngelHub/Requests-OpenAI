@@ -25,7 +25,8 @@
             "VAT_included": "varchar(1)",
             "BLOCKING_REASON": "varchar(50)",
             "TELCLI": "varchar(15)",
-            "name_user": "varchar(50)"
+            "name": "varchar(50)",
+            "CLIENT_NIF": "varchar(20)"
         }
     ],
     "Orders": [
@@ -34,10 +35,11 @@
             "ORDER_ID": "int",
             "TOTBRUTO": "money",
             "TOTAL_VAT": "money",
-            "CLIENT_CODE": "varchar(8)",
+            "CLIENT_CODE": "int",
             "DATE_": "datetime",
             "CLIENT_NIF": "varchar(20)",
-            "COUNTRY_CODE": "varchar(4)"
+            "COUNTRY_CODE": "varchar(4)",
+            "ESTADO": "varchar(100)"
         }
     ]
 }
