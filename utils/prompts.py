@@ -1,7 +1,8 @@
 import json
 import core.logger as J
-from core.utils import convert_decimals
+from utils.utils import convert_decimals
 
+# Function to call the prompt in charge of making an SQL query
 def prompt_query(tables:str, question:str, selected_table:str, column_names:str, clientNif:str):
     prompt_get_query=f""" Contexto:
     Estás conectado a una base de datos relacional que contiene las tablas descritas en el parámetro {tables}. El usuario ha formulado una consulta en lenguaje natural proporcionada en {question}, y tú has identificado que las tablas relevantes son {selected_table}. Además, se ha especificado que solo deben utilizarse las siguientes columnas: {column_names}.  
@@ -23,7 +24,7 @@ def prompt_query(tables:str, question:str, selected_table:str, column_names:str,
     9. Solo puedes obtener la informacion del cliente que te solicite, es decir, tiene que ser algo como Select * FROM ... WHERE CLIENT_CODE = 123456 o algo similar.
     ###IMPORTANTE###
     10. SOLO PODRA OBTENER INFORMACION DE EL MISMO, ES DECIR DE INFORMACION RELACIONADA CON SU clientNif = {clientNif}, puede ser que este en cualquier tabla este campo
-
+    11. Intenta devolver algo, revisa varias veces antes de hacer la consulta, puede que te pregunten por datos y que no sean de manera directa. Con esto me refiero a que si te preguntan, como me llamo tienes que saber que te estan pidiendo un nombre...
     Formato:
 
     Tu respuesta debe contener únicamente la consulta SQL en texto plano, sin ningún comentario, explicación, justificación ni encabezado.
@@ -36,6 +37,7 @@ def prompt_query(tables:str, question:str, selected_table:str, column_names:str,
     Si lo haces bien tendras una propina de 2000$"""
     return prompt_get_query
 
+# Function to call the prompt in charge of searching the JSON for the most appropriate table for the client's query.
 def prompt_table(pdf_tablas:str, question:str):
     prompt_get_table=f"""Contexto:
     Tienes acceso a una base de datos estructurada en formato JSON bajo el parámetro {pdf_tablas}. Esta base de datos contiene múltiples tablas, cada una con su nombre y una lista de campos con descripciones y tipos de datos. Además, el usuario proporciona una consulta en lenguaje natural bajo el parámetro {question}. Tu tarea es analizar ambos elementos y determinar cuál o cuáles tablas de la base de datos contienen la información necesaria para responder adecuadamente a la consulta.
@@ -62,6 +64,7 @@ def prompt_table(pdf_tablas:str, question:str):
     """
     return prompt_get_table
 
+# Function to call the prompt in charge of transforming the JSON into an understandable message
 def prompt_human(lenguaje_json:str):
     try:
         lenguaje_json_str = json.dumps(lenguaje_json, default=convert_decimals)

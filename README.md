@@ -50,7 +50,7 @@ Este proyecto ha sido desarrollado en colaboración con:
 
 ## 📄 **Licencia**
 
-Este proyecto está licenciado bajo la **Licencia GNU GPLv3** - consulta el archivo [LICENSE](LICENSE) para más detalles.
+Este proyecto está licenciado bajo la **Licencia MIT** - consulta el archivo [LICENSE](LICENSE) para más detalles.
 
 ---
 

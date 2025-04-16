@@ -6,86 +6,66 @@ from core.config import OPENAI_API_KEY, SERVER, DATABASE_NAME, USERNAME, PASSWOR
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_openai import ChatOpenAI
 import core.logger as J
-from core.utils import execute_sql_query, get_context
-from prompts import prompt_human, prompt_query, prompt_table
+from bd.querys import execute_sql_query, get_context, get_database_structure
+from utils.prompts import prompt_human, prompt_query, prompt_table
 
 class SQLAssistant:
     def __init__(self):
-        # Initialize the language model with OpenAI
+        # Initialize the language model using OpenAI API
         self.llm = ChatOpenAI(model=MODEL, openai_api_key=OPENAI_API_KEY)
         
-        # Create a prompt template with instructions for generating SQL queries
+        # Create a prompt template for generating SQL queries based on user input
         self.response_prompt = ChatPromptTemplate.from_messages([
-        ("system", """Eres un asistente experto en SQL y ERP.
-        Responde con lenguaje natural y proporciona una consulta SQL específica para SQL Server como respuesta,
-        utilizando la lista de nombres de columna proporcionada para crear la consulta correcta.
-        No incluyas texto adicional ni explicaciones en la consulta SQL."""),  
-        ("human", "{input}")  
+            ("system", """You are an expert assistant in SQL and ERP.
+            Respond with natural language and provide a specific SQL query for SQL Server as the response,
+            using the provided column names list to create the correct query.
+            Do not include any additional text or explanations in the SQL query."""),  
+            ("human", "{input}")  
         ])
-        # Gets the complete structure of the database
-        self.db_context = self.get_database_structure()
+        
+        # Fetch the complete structure of the database at initialization
+        get_database_structure()
 
-    def get_database_structure(self):
-        structure = {}
-        try:
-            conn = pyodbc.connect(
-                f"DRIVER={{SQL Server}};SERVER={SERVER};DATABASE={DATABASE_NAME};UID={USERNAME};PWD={PASSWORD}"
-            )
-            cursor = conn.cursor()
-
-            # Get all table names
-            cursor.execute("SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_TYPE='VIEW'")
-            tablas = [row[0] for row in cursor.fetchall()]
-
-            # For each table, get its columns
-            for tabla in tablas:
-                cursor.execute(f"SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = '{tabla}'")
-                columns = [row[0] for row in cursor.fetchall()]
-                structure[tabla] = columns
-
-            cursor.close()
-            conn.close()
-
-        except Exception as e:
-            # Log any errors in obtaining the structure
-            J.error(f"Error getting database structure: {e}")
-
-        return structure
-
-    # Obtain the table according to the client's request
+    # Function to obtain the relevant table for a client's question
     def ask_llm_for_table(self, question: str) -> str:
         try:
-            with open(r'tablas.json', 'r') as j:
+            with open(r'evals\tablas.json', 'r') as j:
+                # Load the table data from a JSON file
                 pdf_tablas = json.load(j)
+                # Generate the prompt for the language model
                 prompt = prompt_table(pdf_tablas, question)
 
                 table = ""
                 while not table:
+                    # Request the LLM (Language Model) for a table name
                     response = self.llm.invoke(prompt)
                     table = response.content.strip()
-                    print(table)
+                    print(table)  # Log the result for debugging
                     return table
         except Exception as e:
             J.error(f"Error when querying the LLM: {e}")
-            return 'None'
+            return 'None'  # Return 'None' in case of error
     
+    # Function to process a question and generate a response in the form of an SQL query
     def process_q(self, question: str, clientNif:str) -> str:
         # Identify the most relevant table for the question
         selected_table = self.ask_llm_for_table(question)
         if not selected_table:
             return "The table could not be determined."
        
-        # Gets the columns of the table
+        # Retrieve the column names for the selected table
         column_names = get_context(selected_table)
         if not column_names:
-            return f"Algo no ha funcionado, prueba a repetirlo de nuevo, por favor."
-        # Detailed prompt to generate the SQL query
-        with open(r'tablas.json', 'r') as j:
+            return f"Something went wrong, please try again."
+        
+        # Load the table data from the JSON file again for the detailed prompt
+        with open(r'evals\tablas.json', 'r') as j:
             tables = json.load(j)
         
+            # Generate a detailed prompt for SQL query creation
             prompt = prompt_query(tables, question, selected_table, column_names, clientNif)
             
-        # Generates the SQL query using the language model
+        # Generate the SQL query using the language model
         response = self.llm.invoke(self.response_prompt.format(input=prompt))
         response_text = response.content
         J.info(f"LLM Answer: {response_text}")
@@ -95,47 +75,46 @@ class SQLAssistant:
         match = re.search(sql_pattern, response_text, re.DOTALL | re.IGNORECASE)
 
         if match:
-            sql_query = match.group(1)
-            # We check that no changes are made to the database
-
+            sql_query = match.group(1)  # Get the SQL query from the matched result
+            
+            # Check if the query contains dangerous SQL keywords
             dangerous_keywords = [
-                'DROP', 'DELETE', 'ALTER', 'REMOVE', 'TRUNCATE', 'RECEIVE', 'REFERENCES'
+                'DROP', 'DELETE', 'ALTER', 'REMOVE', 'TRUNCATE', 'RECEIVE', 'REFERENCES',
                 'UPDATE', 'MERGE', 'INSERT', 'CREATE', 'EXEC', 'EXECUTE', 'GRANT',
                 'REVOKE', 'BEGIN', 'COMMIT', 'ROLLBACK', 'SAVEPOINT',
-                
             ]
             if any(keyword in sql_query.upper() for keyword in dangerous_keywords):
-                return "No puedes hacer eso, solo puedes consultar datos, no puedes modificarlos ni eliminarlos."
+                return "You can't do that, only queries for data retrieval are allowed, modifications or deletions are not permitted."
 
             try:
-                # Execute the SQL query
+                # Execute the generated SQL query
                 query_result = execute_sql_query(sql_query)
                 if query_result is False:
-                    return 'No hemos encontrado nada'
+                    return 'No results found.'
                 else: 
-                    return SQLAssistant.transform_human(query_result).strip()
+                    return SQLAssistant.transform_human(query_result).strip()  # Transform the result to human-readable format
 
             except Exception as e:
                 return f"\n\nError executing SQL query: {e}"
         
-    # Transforms the result of the SQL query and develops it into a message to make it clearer
+    # Function to transform the result of a SQL query into a human-readable message
     def transform_human(lenguaje_json):
         try:
             J.info("Transforming JSON result into human-readable format")
             
-            openai.api_key = OPENAI_API_KEY 
+            openai.api_key = OPENAI_API_KEY  # Set OpenAI API key for transformation
             
-           
-            prompt = prompt_human(lenguaje_json)
+            prompt = prompt_human(lenguaje_json)  # Generate prompt for transformation
 
+            # Request transformation using OpenAI model (e.g., GPT-4)
             answer = openai.chat.completions.create(
                 model="gpt-4o-mini",
                 messages = [
-                    {"role": "system", "content": "Eres un asistente experto en bases de datos que entiende las consultas SQL y las transforma para que los resultados de las consultas sean comprensibles para un humano que no tiene conocimientos de JSON."},
+                    {"role": "system", "content": "You are an expert assistant in databases that understands SQL queries and transforms them into a human-readable format."},
                     {"role": "user", "content": prompt}
                 ],
-                max_tokens=4096, #The more tokens we put in, the more it will consume, but the better the response would be.
-                temperature=0.2 # The temperature is the randomness of the response, the lower the value, the more predictable the response will be.
+                max_tokens=4096,  # Max token limit for the model (higher = more content)
+                temperature=0.2  # Temperature setting for response randomness (lower is more predictable)
             )
             J.info("Transformation to human-readable format successful")
             return answer.choices[0].message.content
